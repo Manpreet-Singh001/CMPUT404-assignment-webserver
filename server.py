@@ -1,5 +1,7 @@
 #  coding: utf-8 
 import socketserver
+import pathlib
+
 
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
 # 
@@ -26,13 +28,49 @@ import socketserver
 
 # try: curl -v -X GET http://127.0.0.1:8080/
 
+def generate_response(res_code, msg, headers='', content=''):
+    return f'HTTP/1.1 {res_code} {msg}\n{headers}\n\n{content}'
+
 
 class MyWebServer(socketserver.BaseRequestHandler):
-    
+
     def handle(self):
         self.data = self.request.recv(1024).strip()
-        print ("Got a request of: %s\n" % self.data)
-        self.request.sendall(bytearray("OK",'utf-8'))
+        method = self.data.decode('ascii').split(" ")[0]
+        requested_path = self.data.decode('ascii').split(" ")[1]
+
+        # 405 for non supported methods
+        if method != 'GET':
+            res = generate_response(405, "Method Not Allowed")
+            self.request.sendall(res.encode())
+            return
+
+        # prevent access to files outside www and invalid files
+        resolved_path = pathlib.Path(f'./www{requested_path}')
+        if not resolved_path.as_posix().startswith(pathlib.Path('./www/').as_posix())\
+                or not (resolved_path.is_file() or resolved_path.is_dir()):
+            res = generate_response(404, "Not Found")
+            self.request.sendall(res.encode())
+            return
+
+        if resolved_path.is_dir():
+            file_path = pathlib.Path(resolved_path.as_posix() + 'index.html')
+            if not file_path.is_file():
+                res = generate_response(404, "Not Found")
+                self.request.sendall(res.encode())
+                return
+
+            res = generate_response(200, "OK", f'Content-Type: text/{file_path.suffix.split(".")[1]}',file_path.read_text())
+            self.request.sendall(res.encode())
+            return
+
+        content = resolved_path.read_text()
+        res = generate_response(200, "OK", f'Content-Type: text/{resolved_path.suffix.split(".")[1]}', content)
+        self.request.sendall(res.encode())
+        return
+
+
+
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
