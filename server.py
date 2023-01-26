@@ -33,12 +33,12 @@ def generate_response(res_code, msg, headers='', content=''):
 
 
 class MyWebServer(socketserver.BaseRequestHandler):
-
     def handle(self):
         self.data = self.request.recv(1024).strip()
         method = self.data.decode('ascii').split(" ")[0]
         requested_path = self.data.decode('ascii').split(" ")[1]
 
+        print(method, requested_path)
         # 405 for non supported methods
         if method != 'GET':
             res = generate_response(405, "Method Not Allowed")
@@ -46,15 +46,20 @@ class MyWebServer(socketserver.BaseRequestHandler):
             return
 
         # prevent access to files outside www and invalid files
-        resolved_path = pathlib.Path(f'./www{requested_path}').resolve()
-        if not resolved_path.as_posix().startswith(pathlib.Path('./www/').as_posix())\
+        resolved_path = pathlib.Path(f'./www{requested_path}')
+        if not resolved_path.resolve().as_posix().startswith(pathlib.Path('./www/').resolve().as_posix())\
                 or not (resolved_path.is_file() or resolved_path.is_dir()):
             res = generate_response(404, "Not Found")
             self.request.sendall(res.encode())
             return
 
+        if resolved_path.is_dir() and requested_path[-1] != '/':
+            res = generate_response(301, "Moved Permanently", f"Location: http://127.0.0.1:8080{requested_path}/")
+            self.request.sendall(res.encode());
+            return
+
         if resolved_path.is_dir():
-            file_path = pathlib.Path(resolved_path.as_posix() + 'index.html')
+            file_path = pathlib.Path(resolved_path.as_posix() + '/index.html')
             if not file_path.is_file():
                 res = generate_response(404, "Not Found")
                 self.request.sendall(res.encode())
