@@ -46,7 +46,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
             return
 
         # prevent access to files outside www and invalid files
-        resolved_path = pathlib.Path(f'./www{requested_path}')
+        resolved_path = pathlib.Path(f'./www{requested_path}').resolve()
         if not resolved_path.as_posix().startswith(pathlib.Path('./www/').as_posix())\
                 or not (resolved_path.is_file() or resolved_path.is_dir()):
             res = generate_response(404, "Not Found")
